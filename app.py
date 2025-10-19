@@ -11,6 +11,7 @@ import httpx
 import sys
 import tempfile
 import uuid
+from typing import Any, Dict, List, Optional
 from memory_manager import MemoryManager
 from permit_tool import (
     CSV_HEADER as PERMIT_CSV_HEADER,
@@ -53,17 +54,45 @@ except ValueError:
 chat_sessions = {}
 
 DEFAULT_MODEL = OPENAI_MODEL or 'gpt-4o-mini'
-USER_SELECTABLE_MODELS = {
+USER_SELECTABLE_MODELS = [
+    'gpt-4o',
+    'gpt-4o-mini',
+    'gpt-4-turbo',
     'gpt-3.5-turbo',
     'gpt-3.5-turbo-0125',
-}
+]
 
 MODEL_LABELS = {
     'gpt-4o': 'GPT-4o',
     'gpt-4o-mini': 'GPT-4o Mini',
     'gpt-4-turbo': 'GPT-4 Turbo',
-    'gpt-3.5-turbo': 'GPT-3.5 Turbo'
+    'gpt-3.5-turbo': 'GPT-3.5 Turbo',
+    'gpt-3.5-turbo-0125': 'GPT-3.5 Turbo (Jan 25)',
 }
+
+# Build ordered model options for UI consumption
+def _build_model_options(active_model: Optional[str] = None) -> List[Dict[str, Any]]:
+    seen = set()
+    options: List[Dict[str, Any]] = []
+    ordered = [DEFAULT_MODEL] + USER_SELECTABLE_MODELS
+    for model_name in ordered:
+        if not model_name or model_name in seen:
+            continue
+        seen.add(model_name)
+        options.append({
+            'id': model_name,
+            'display_name': _format_model_label(model_name),
+            'is_default': model_name == DEFAULT_MODEL,
+            'is_active': model_name == active_model
+        })
+    return options
+
+
+def _safe_get(item: Any, key: str, default: Any = None) -> Any:
+    if isinstance(item, dict):
+        return item.get(key, default)
+    return getattr(item, key, default)
+
 
 # --- Memory setup ---
 MEMORY_DIR = os.getenv('MEMORY_DIR', os.path.join(os.getcwd(), 'memory_store'))
@@ -105,7 +134,8 @@ def _get_model_candidates(preferred_model=None):
         DEFAULT_MODEL,
         'gpt-4o-mini',
         'gpt-4-turbo',
-        'gpt-3.5-turbo'
+        'gpt-3.5-turbo',
+        'gpt-3.5-turbo-0125'
     ]
 
     seen = set()
@@ -170,36 +200,119 @@ def _build_responses_input(conversation_history):
     return input_items
 
 
-def _extract_response_text(response):
-    if hasattr(response, "output_text") and response.output_text:
-        text_value = response.output_text.strip()
-        if text_value:
-            return text_value
+def _try_parse_web_results(raw_text: str) -> Optional[List[Dict[str, Any]]]:
+    text = (raw_text or '').strip()
+    if not text:
+        return None
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return None
 
-    collected_segments = []
+    if isinstance(parsed, dict):
+        candidates = parsed.get('results') or parsed.get('data') or parsed.get('items') or []
+    elif isinstance(parsed, list):
+        candidates = parsed
+    else:
+        return None
 
-    if hasattr(response, "output") and response.output:
-        for item in response.output:
-            item_type = getattr(item, 'type', None)
+    if not isinstance(candidates, list):
+        return None
 
-            if item_type == 'output_text':
-                text_value = getattr(item, 'text', '')
-                if text_value:
-                    collected_segments.append(text_value)
-            elif item_type == 'tool_output':
-                text_value = getattr(item, 'output', '')
-                if text_value:
-                    collected_segments.append(text_value)
-            elif item_type == 'message':
-                content_items = getattr(item, 'content', []) or []
-                for content in content_items:
-                    if getattr(content, 'type', None) in {'text', 'output_text'}:
-                        text_value = getattr(content, 'text', '')
-                        if text_value:
-                            collected_segments.append(text_value)
+    results: List[Dict[str, Any]] = []
+    for entry in candidates:
+        if not isinstance(entry, dict):
+            continue
+        result = {
+            'title': entry.get('title') or entry.get('name') or '',
+            'url': entry.get('url') or entry.get('link') or '',
+            'snippet': entry.get('snippet') or entry.get('description') or entry.get('summary') or '',
+            'source': entry.get('source') or entry.get('site') or entry.get('displayUrl') or '',
+            'image': entry.get('image') or entry.get('image_url') or entry.get('thumbnail') or '',
+            'favicon': entry.get('favicon') or entry.get('icon') or ''
+        }
+        if any(result.values()):
+            results.append(result)
 
-    combined = "\n".join(segment.strip() for segment in collected_segments if segment)
-    return combined.strip() or "I'm sorry, I wasn't able to generate a response this time."
+    return results or None
+
+
+def _extract_response_content(response) -> Dict[str, Any]:
+    collected_segments: List[str] = []
+    web_results: List[Dict[str, Any]] = []
+
+    def append_segment(value: Optional[str]):
+        value = (value or '').strip()
+        if value:
+            collected_segments.append(value)
+
+    output_text = getattr(response, 'output_text', None)
+    if output_text:
+        append_segment(output_text)
+
+    for item in (_safe_get(response, 'output', []) or []):
+        item_type = _safe_get(item, 'type')
+
+        if item_type == 'output_text':
+            append_segment(_safe_get(item, 'text', ''))
+            continue
+
+        if item_type == 'tool_output':
+            tool_name = (_safe_get(item, 'tool_name') or _safe_get(item, 'name') or '').lower()
+            content_items = _safe_get(item, 'content', []) or []
+            tool_segments = []
+            for content in content_items:
+                if _safe_get(content, 'type') in {'output_text', 'text'}:
+                    segment_text = _safe_get(content, 'text', '')
+                    if segment_text:
+                        tool_segments.append(segment_text)
+            text_value = _safe_get(item, 'output', '')
+            if not text_value and tool_segments:
+                text_value = "\n".join(tool_segments)
+            if tool_name and 'web_search' in tool_name and text_value:
+                parsed_results = _try_parse_web_results(text_value)
+                if parsed_results:
+                    web_results.extend(parsed_results)
+                    continue
+            append_segment(text_value)
+            continue
+
+        if item_type == 'message':
+            content_items = _safe_get(item, 'content', []) or []
+            for content in content_items:
+                content_type = _safe_get(content, 'type')
+                if content_type in {'text', 'output_text'}:
+                    append_segment(_safe_get(content, 'text', ''))
+                elif content_type == 'tool_result':
+                    tool_name = (_safe_get(content, 'name') or _safe_get(content, 'tool_name') or '').lower()
+                    text_value = _safe_get(content, 'output', '')
+                    if not text_value:
+                        nested = _safe_get(content, 'content', []) or []
+                        nested_segments = []
+                        for nested_content in nested:
+                            if _safe_get(nested_content, 'type') in {'text', 'output_text'}:
+                                nested_text = _safe_get(nested_content, 'text', '')
+                                if nested_text:
+                                    nested_segments.append(nested_text)
+                        text_value = "\n".join(nested_segments)
+                    if tool_name and 'web_search' in tool_name and text_value:
+                        parsed_results = _try_parse_web_results(text_value)
+                        if parsed_results:
+                            web_results.extend(parsed_results)
+                            continue
+                    append_segment(text_value)
+            continue
+
+        append_segment(_safe_get(item, 'text', ''))
+
+    combined = "\n".join(collected_segments).strip()
+    if not combined:
+        combined = "I'm sorry, I wasn't able to generate a response this time."
+
+    payload: Dict[str, Any] = {'text': combined}
+    if web_results:
+        payload['web_results'] = web_results
+    return payload
 
 @app.route('/')
 def index():
@@ -272,19 +385,34 @@ def chat():
                 'message': "\n\n".join(context_prelude)
             }]
 
-        ai_response = generate_ai_response(user_message, conversation_history, preferred_model)
+        ai_response_payload = generate_ai_response(user_message, conversation_history, preferred_model)
+        if isinstance(ai_response_payload, dict):
+            ai_text = (ai_response_payload.get('text') or '').strip()
+            extras = {k: v for k, v in ai_response_payload.items() if k != 'text'}
+        else:
+            ai_text = str(ai_response_payload or '')
+            extras = {}
 
         # Add AI response to chat history
-        ai_msg = {
+        ai_history_entry = {
             'id': str(uuid.uuid4()),
             'type': 'assistant',
-            'message': ai_response,
+            'message': ai_text,
             'timestamp': datetime.datetime.now().isoformat()
         }
-        chat_sessions[session_id].append(ai_msg)
+        if extras:
+            ai_history_entry['extras'] = extras
+
+        chat_sessions[session_id].append(ai_history_entry)
+
         # Persist assistant message and maybe summarize
-        memory.add_message(session_id, role='assistant', content=ai_response, embed_user=False)
+        memory.add_message(session_id, role='assistant', content=ai_text, embed_user=False)
         memory.maybe_update_summary(session_id, model_name=(preferred_model or DEFAULT_MODEL))
+
+        ai_msg = dict(ai_history_entry)
+        if extras:
+            ai_msg.update(extras)
+            ai_msg.pop('extras', None)
 
         return jsonify({
             'user_message': user_msg,
@@ -611,7 +739,7 @@ def manage_model():
 
         if requested == 'default':
             session.pop('preferred_model', None)
-        elif requested in USER_SELECTABLE_MODELS:
+        elif requested in USER_SELECTABLE_MODELS or requested == DEFAULT_MODEL:
             session['preferred_model'] = requested
         else:
             return jsonify({'error': f'Unsupported model selection: {requested_raw}'}), 400
@@ -621,7 +749,8 @@ def manage_model():
     return jsonify({
         'model': active_model,
         'display_name': _format_model_label(active_model),
-        'is_default': active_model == DEFAULT_MODEL
+        'is_default': active_model == DEFAULT_MODEL,
+        'options': _build_model_options(active_model)
     })
 
 def generate_ai_response(user_message, conversation_history=None, preferred_model=None):
@@ -798,7 +927,7 @@ Provide thorough, detailed responses. Don't be brief unless specifically asked. 
                         if response:
                             if model_name != OPENAI_MODEL:
                                 app.logger.info("Fell back to model %s for Responses API", model_name)
-                            return _extract_response_text(response)
+                            return _extract_response_content(response)
 
                     except AttributeError:
                         # Current SDK does not support Responses API; disable for remainder of loop
@@ -822,7 +951,7 @@ Provide thorough, detailed responses. Don't be brief unless specifically asked. 
                                     store=False
                                 )
                                 if response:
-                                    return _extract_response_text(response)
+                                    return _extract_response_content(response)
                             except Exception as retry_error:
                                 if _is_model_not_found_error(retry_error):
                                     app.logger.warning("Responses API model %s unavailable: %s", model_name, retry_error)
@@ -851,7 +980,8 @@ Provide thorough, detailed responses. Don't be brief unless specifically asked. 
                     if completion and completion.choices:
                         if model_name != OPENAI_MODEL:
                             app.logger.info("Fell back to model %s", model_name)
-                        return completion.choices[0].message.content.strip()
+                        text_value = completion.choices[0].message.content.strip()
+                        return {'text': text_value}
 
                 except Exception as api_error:
                     if _is_max_output_tokens_error(api_error) and MAX_OUTPUT_TOKENS != FALLBACK_OUTPUT_TOKENS:
@@ -869,7 +999,8 @@ Provide thorough, detailed responses. Don't be brief unless specifically asked. 
                                 max_tokens=FALLBACK_OUTPUT_TOKENS
                             )
                             if completion and completion.choices:
-                                return completion.choices[0].message.content.strip()
+                                text_value = completion.choices[0].message.content.strip()
+                                return {'text': text_value}
                         except Exception as retry_error:
                             if _is_model_not_found_error(retry_error):
                                 app.logger.warning("Chat Completions model %s unavailable: %s", model_name, retry_error)
@@ -888,9 +1019,9 @@ Provide thorough, detailed responses. Don't be brief unless specifically asked. 
 
         except Exception as exc:
             app.logger.error("OpenAI API error: %s", exc)
-            return f"Sorry, I encountered an error: {str(exc)}"
+            return {'text': f"Sorry, I encountered an error: {str(exc)}"}
 
-    return "I'm running in demo mode. Please configure your OpenAI API key to get real responses."
+    return {'text': "I'm running in demo mode. Please configure your OpenAI API key to get real responses."}
 
 
 if __name__ == '__main__':
