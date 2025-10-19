@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Chat Assistant</title>
+    <title>Foremanai Permit Crawler</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -16,7 +16,7 @@
                 <i class="fas fa-brain"></i>
             </div>
             <div class="header-info">
-                <h1 class="chat-title" style="margin-bottom: 0.2em;">AI Assistant & Permit Fetcher</h1>
+                <h1 class="chat-title" style="margin-bottom: 0.2em;">Foremanai Permit Crawler</h1>
                 <p class="chat-subtitle" style="font-size: 1.1em; color: var(--neon-primary);">Premium UI — Powered by Advanced AI</p>
             </div>
             <div class="header-actions" style="margin-left: auto; display: flex; gap: 0.5em;">
@@ -28,8 +28,8 @@
         <!-- Permit Fetcher Panel -->
         <div class="permits-panel" id="permitsPanel" style="margin-bottom: 2em;">
             <div class="permits-header" style="margin-bottom: 0.5em;">
-                <h2 class="permits-title" style="margin-bottom: 0.2em;">Permit Fetcher</h2>
-                <p class="permits-subtitle" style="font-size: 1em; color: var(--neon-primary);">Upload a report, paste text, or fetch the latest permits (project code 101).</p>
+                <h2 class="permits-title" style="margin-bottom: 0.2em;">Permit Crawler</h2>
+                <p class="permits-subtitle" style="font-size: 1em; color: var(--neon-primary);">Upload a report, paste text, or Crawl the latest permits (project code 101).</p>
             </div>
             <div class="permits-header-inputs" style="display: flex; flex-wrap: wrap; align-items: center; gap: 1.2em; margin-bottom: 0.5em;">
                 <label class="permits-upload-btn" for="permitFileInput" style="display: flex; align-items: center; gap: 0.5em;">
@@ -79,7 +79,7 @@
                     </div>
                     <div class="message-content">
                         <div class="message-bubble">
-                            <p>Hello! I'm your AI assistant. How can I help you today?</p>
+                            <p>Hello! I'm Foremanai. What are you looking to do?</p>
                         </div>
                         <div class="message-time">
                             <span id="welcomeTime"></span>
@@ -155,5 +155,6 @@
     <script src="{{ url_for('static', filename='js/chat.js') }}?v=20250203"></script>
 </body>
 </html>
+
 
 
