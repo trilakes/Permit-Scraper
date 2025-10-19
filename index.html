@@ -1,160 +1,245 @@
+<!--
+# name: index.html
+# version: 1
+# Note:
+# - This file is for GitHub Pages (static hosting).
+# - No Flask/Jinja tags are used. Asset paths are plain relative URLs.
+# - Place this file at the ROOT of the repository (or the Pages publish folder).
+# - Ensure the following folders exist next to this file:
+#       ./css/styles.css
+#       ./js/permits.js
+#       ./js/chat.js
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Foremanai Permit Crawler</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  />
+  <title>Foremanai Permit Crawler</title>
+
+  <!-- Fonts & Icons -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <link
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    rel="stylesheet"
+  />
+
+  <!-- Site CSS (static path for GitHub Pages) -->
+  <link rel="stylesheet" href="./css/styles.css" />
+  <meta name="color-scheme" content="dark" />
 </head>
 <body>
-    <div class="app-container" style="max-width: 900px; margin: 2em auto; background: var(--bg-glass, #181c24e6); border-radius: 24px; box-shadow: 0 4px 32px rgba(0,0,0,0.12); padding: 2em 2em 1.5em 2em;">
-        <!-- Unified Header -->
-        <div class="main-header" style="display: flex; align-items: center; gap: 1.5em; margin-bottom: 1.5em;">
-            <div class="ai-avatar" style="font-size: 2.5em; color: var(--neon-primary);">
-                <i class="fas fa-brain"></i>
-            </div>
-            <div class="header-info">
-                <h1 class="chat-title" style="margin-bottom: 0.2em;">Foremanai Permit Crawler</h1>
-                <p class="chat-subtitle" style="font-size: 1.1em; color: var(--neon-primary);">Premium UI — Powered by Advanced AI</p>
-            </div>
-            <div class="header-actions" style="margin-left: auto; display: flex; gap: 0.5em;">
-                <button class="header-btn" id="clearChatBtn" title="Clear Chat"><i class="fas fa-trash"></i></button>
-                <button class="header-btn" id="settingsBtn" title="Settings"><i class="fas fa-cog"></i></button>
-            </div>
-        </div>
-
-        <!-- Permit Fetcher Panel -->
-        <div class="permits-panel" id="permitsPanel" style="margin-bottom: 2em;">
-            <div class="permits-header" style="margin-bottom: 0.5em;">
-                <h2 class="permits-title" style="margin-bottom: 0.2em;">Permit Crawler</h2>
-                <p class="permits-subtitle" style="font-size: 1em; color: var(--neon-primary);">Upload a report, paste text, or Crawl the latest permits (project code 101).</p>
-            </div>
-            <div class="permits-header-inputs" style="display: flex; flex-wrap: wrap; align-items: center; gap: 1.2em; margin-bottom: 0.5em;">
-                <label class="permits-upload-btn" for="permitFileInput" style="display: flex; align-items: center; gap: 0.5em;">
-                    <i class="fas fa-file-upload"></i>
-                    <span>Select weekly/weekday .txt reports</span>
-                </label>
-                <input type="file" id="permitFileInput" accept=".txt" multiple hidden>
-                <button class="permits-secondary-btn" id="clearPermitInputs" type="button" style="margin-right: 1em;">
-                    <i class="fas fa-eraser"></i>
-                    <span>Clear inputs</span>
-                </button>
-                <div class="permits-file-list" id="permitFileList" style="margin-right: 1em;"></div>
-                <textarea
-                    id="permitReportText"
-                    class="permits-textarea"
-                    rows="2"
-                    style="min-width: 220px; max-width: 320px; resize: vertical;"
-                    placeholder="Paste a PPRBD weekly report (id=45) or weekday report (id 40-44)..."
-                ></textarea>
-                <small class="permits-hint" style="margin-right: 1em;">Uploads take priority; otherwise the pasted text is parsed or a live fetch is attempted.</small>
-                <div class="permits-status" id="permitStatusMessage" style="margin-right: 1em;"></div>
-                <label for="permitDayRange" style="font-weight: 600; color: var(--neon-primary); margin-right: 0.5em;">Range</label>
-                <select id="permitDayRange" style="border-radius: 12px; padding: 0.5em 1em; background: var(--bg-glass); color: var(--neon-primary); border: 1.5px solid var(--neon-primary); font-size: 1em;">
-                    <option value="30" selected>Last 30 days</option>
-                    <option value="60">Last 60 days</option>
-                </select>
-                <label class="permits-filter-toggle" for="homeownerToggle" style="margin-left: 1em;">
-                    <input type="checkbox" id="homeownerToggle">
-                    <span class="permits-filter-indicator"></span>
-                    <span class="permits-filter-label">Homeowner permits only</span>
-                </label>
-                <button class="permits-primary-btn" id="fetchPermitsBtn" type="button" style="margin-left: 1em;">
-                    <i class="fas fa-database"></i>
-                    <span id="fetchPermitsLabel">Fetch permits</span>
-                </button>
-            </div>
-            <div class="permits-results" id="permitResults"></div>
-        </div>
-
-        <!-- Chat Container -->
-        <div class="chat-container" style="background: var(--bg-glass, #23283aee); border-radius: 18px; box-shadow: 0 2px 16px rgba(0,0,0,0.08); padding: 1.5em;">
-            <div class="chat-messages" id="chatMessages">
-                <!-- Welcome Message -->
-                <div class="message-container assistant-message">
-                    <div class="message-avatar">
-                        <i class="fas fa-robot"></i>
-                    </div>
-                    <div class="message-content">
-                        <div class="message-bubble">
-                            <p>Hello! I'm Foremanai. What are you looking to do?</p>
-                        </div>
-                        <div class="message-time">
-                            <span id="welcomeTime"></span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Typing Indicator -->
-            <div class="typing-indicator" id="typingIndicator" style="display: none;">
-                <div class="message-container assistant-message">
-                    <div class="message-avatar">
-                        <i class="fas fa-robot"></i>
-                    </div>
-                    <div class="message-content">
-                        <div class="message-bubble typing">
-                            <div class="typing-dots">
-                                <span></span>
-                                <span></span>
-                                <span></span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Input Area -->
-            <footer class="chat-input-container" style="margin-top: 1em;">
-                <div class="input-wrapper">
-                    <div class="input-group">
-                        <button class="attach-btn" id="attachBtn" title="Attach File">
-                            <i class="fas fa-paperclip"></i>
-                        </button>
-                        <textarea 
-                            id="messageInput" 
-                            placeholder="Type your message here..." 
-                            rows="1"
-                            maxlength="2000"
-                        ></textarea>
-                        <button class="send-btn" id="sendBtn" title="Send Message">
-                            <i class="fas fa-paper-plane"></i>
-                        </button>
-                    </div>
-                    <div class="input-footer">
-                        <span class="character-count" id="charCount">0/2000</span>
-                        <span class="ai-info">AI Assistant v1.0</span>
-                    </div>
-                </div>
-            </footer>
-        </div>
-    </div>
-
-    <!-- Loading Overlay -->
-    <div class="loading-overlay" id="loadingOverlay" style="display: none;">
-        <div class="loading-spinner">
-            <div class="spinner"></div>
-            <p>Connecting to AI...</p>
-        </div>
-    </div>
-
-    <!-- Error Toast -->
-    <div class="error-toast" id="errorToast" style="display: none;">
-        <i class="fas fa-exclamation-triangle"></i>
-        <span id="errorMessage">An error occurred</span>
-        <button class="close-toast" onclick="hideError()">
-            <i class="fas fa-times"></i>
+  <div
+    class="app-container"
+    style="max-width: 900px; margin: 2em auto; background: var(--bg-glass, #181c24e6); border-radius: 24px; box-shadow: 0 4px 32px rgba(0,0,0,0.12); padding: 2em 2em 1.5em 2em;"
+  >
+    <!-- Header -->
+    <div
+      class="main-header"
+      style="display: flex; align-items: center; gap: 1.5em; margin-bottom: 1.5em;"
+    >
+      <div class="ai-avatar" style="font-size: 2.5em; color: var(--neon-primary);">
+        <i class="fas fa-brain" aria-hidden="true"></i>
+      </div>
+      <div class="header-info">
+        <h1 class="chat-title" style="margin-bottom: 0.2em;">Foremanai Permit Crawler</h1>
+        <p class="chat-subtitle" style="font-size: 1.1em; color: var(--neon-primary);">
+          Premium UI — Powered by Advanced AI
+        </p>
+      </div>
+      <div class="header-actions" style="margin-left: auto; display: flex; gap: 0.5em;">
+        <button class="header-btn" id="clearChatBtn" title="Clear Chat" aria-label="Clear Chat">
+          <i class="fas fa-trash" aria-hidden="true"></i>
         </button>
+        <button class="header-btn" id="settingsBtn" title="Settings" aria-label="Settings">
+          <i class="fas fa-cog" aria-hidden="true"></i>
+        </button>
+      </div>
     </div>
-    
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
-    <script src="{{ url_for('static', filename='js/permits.js') }}?v=20250203"></script>
-    <script src="{{ url_for('static', filename='js/chat.js') }}?v=20250203"></script>
+
+    <!-- Permit Fetcher Panel -->
+    <section class="permits-panel" id="permitsPanel" style="margin-bottom: 2em;">
+      <header class="permits-header" style="margin-bottom: 0.5em;">
+        <h2 class="permits-title" style="margin-bottom: 0.2em;">Permit Crawler</h2>
+        <p class="permits-subtitle" style="font-size: 1em; color: var(--neon-primary);">
+          Upload a report, paste text, or crawl the latest permits (project code 101).
+        </p>
+      </header>
+
+      <div
+        class="permits-header-inputs"
+        style="display: flex; flex-wrap: wrap; align-items: center; gap: 1.2em; margin-bottom: 0.5em;"
+      >
+        <!-- Upload -->
+        <label
+          class="permits-upload-btn"
+          for="permitFileInput"
+          style="display: flex; align-items: center; gap: 0.5em; cursor: pointer;"
+        >
+          <i class="fas fa-file-upload" aria-hidden="true"></i>
+          <span>Select weekly/weekday .txt reports</span>
+        </label>
+        <input type="file" id="permitFileInput" accept=".txt" multiple hidden />
+
+        <!-- Clear inputs -->
+        <button class="permits-secondary-btn" id="clearPermitInputs" type="button" style="margin-right: 1em;">
+          <i class="fas fa-eraser" aria-hidden="true"></i>
+          <span>Clear inputs</span>
+        </button>
+
+        <!-- Selected files list -->
+        <div class="permits-file-list" id="permitFileList" style="margin-right: 1em;"></div>
+
+        <!-- Paste report text -->
+        <label for="permitReportText" class="sr-only">Paste report text</label>
+        <textarea
+          id="permitReportText"
+          class="permits-textarea"
+          rows="2"
+          style="min-width: 220px; max-width: 320px; resize: vertical;"
+          placeholder="Paste a PPRBD weekly report (id=45) or weekday report (id 40-44)..."
+        ></textarea>
+
+        <small class="permits-hint" style="margin-right: 1em;">
+          Uploads take priority; otherwise the pasted text is parsed or a live fetch is attempted.
+        </small>
+
+        <!-- Status -->
+        <div class="permits-status" id="permitStatusMessage" style="margin-right: 1em;"></div>
+
+        <!-- Range -->
+        <label for="permitDayRange" style="font-weight: 600; color: var(--neon-primary); margin-right: 0.5em;">
+          Range
+        </label>
+        <select
+          id="permitDayRange"
+          style="border-radius: 12px; padding: 0.5em 1em; background: var(--bg-glass); color: var(--neon-primary); border: 1.5px solid var(--neon-primary); font-size: 1em;"
+        >
+          <option value="30" selected>Last 30 days</option>
+          <option value="60">Last 60 days</option>
+        </select>
+
+        <!-- Homeowner filter -->
+        <label class="permits-filter-toggle" for="homeownerToggle" style="margin-left: 1em;">
+          <input type="checkbox" id="homeownerToggle" />
+          <span class="permits-filter-indicator" aria-hidden="true"></span>
+          <span class="permits-filter-label">Homeowner permits only</span>
+        </label>
+
+        <!-- Fetch button -->
+        <button class="permits-primary-btn" id="fetchPermitsBtn" type="button" style="margin-left: 1em;">
+          <i class="fas fa-database" aria-hidden="true"></i>
+          <span id="fetchPermitsLabel">Fetch permits</span>
+        </button>
+      </div>
+
+      <!-- Results -->
+      <div class="permits-results" id="permitResults"></div>
+    </section>
+
+    <!-- Chat -->
+    <section
+      class="chat-container"
+      style="background: var(--bg-glass, #23283aee); border-radius: 18px; box-shadow: 0 2px 16px rgba(0,0,0,0.08); padding: 1.5em;"
+      aria-label="AI Chat"
+    >
+      <div class="chat-messages" id="chatMessages">
+        <!-- Welcome message -->
+        <div class="message-container assistant-message">
+          <div class="message-avatar" aria-hidden="true">
+            <i class="fas fa-robot"></i>
+          </div>
+          <div class="message-content">
+            <div class="message-bubble">
+              <p>Hello! I'm Foremanai. What Can I Do For You?</p>
+            </div>
+            <div class="message-time">
+              <span id="welcomeTime"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Typing indicator -->
+      <div class="typing-indicator" id="typingIndicator" style="display: none;">
+        <div class="message-container assistant-message" aria-live="polite" aria-atomic="true">
+          <div class="message-avatar" aria-hidden="true">
+            <i class="fas fa-robot"></i>
+          </div>
+          <div class="message-content">
+            <div class="message-bubble typing">
+              <div class="typing-dots" aria-hidden="true">
+                <span></span><span></span><span></span>
+              </div>
+              <span class="sr-only"> Foremanai is typing…</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Input -->
+      <footer class="chat-input-container" style="margin-top: 1em;">
+        <div class="input-wrapper">
+          <div class="input-group">
+            <button class="attach-btn" id="attachBtn" title="Attach File" aria-label="Attach file">
+              <i class="fas fa-paperclip" aria-hidden="true"></i>
+            </button>
+
+            <label for="messageInput" class="sr-only">Type your message</label>
+            <textarea
+              id="messageInput"
+              placeholder="Type your message here..."
+              rows="1"
+              maxlength="2000"
+            ></textarea>
+
+            <button class="send-btn" id="sendBtn" title="Send Message" aria-label="Send message">
+              <i class="fas fa-paper-plane" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="input-footer">
+            <span class="character-count" id="charCount">0/2000</span>
+            <span class="ai-info">AI Assistant v1.0</span>
+          </div>
+        </div>
+      </footer>
+    </section>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+    <div class="loading-spinner">
+      <div class="spinner"></div>
+      <p>Connecting to AI...</p>
+    </div>
+  </div>
+
+  <!-- Error Toast -->
+  <div class="error-toast" id="errorToast" style="display: none;">
+    <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+    <span id="errorMessage">An error occurred</span>
+    <button class="close-toast" onclick="hideError()" aria-label="Close error">
+      <i class="fas fa-times" aria-hidden="true"></i>
+    </button>
+  </div>
+
+  <!-- Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js" defer></script>
+
+  <!-- Your app scripts (static paths for GitHub Pages) -->
+  <!-- Tip: If your backend runs on Render, set API_BASE inside these files to your Render URL. -->
+  <script src="./js/permits.js?v=20250203" defer></script>
+  <script src="./js/chat.js?v=20250203" defer></script>
 </body>
 </html>
+
 
 
 
